@@ -2,3 +2,12 @@
 .idea/
 __pycache__/
 *.pyc
+
+venv
+sqlite3.db
+setup.cfg
+
+# Эксперементы
+
+test_client.py
+test_server.py
