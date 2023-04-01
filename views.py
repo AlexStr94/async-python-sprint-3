@@ -1,20 +1,26 @@
 from datetime import datetime
-from uuid import uuid4
-from aiohttp import web
 from http import HTTPStatus
-import peewee as pw
-from decorators import check_user_token
+from uuid import uuid4
 
+import peewee as pw
+from aiohttp import web
+
+from decorators import check_user_token
+from logger import server_logger
 from models import Chat, ChatMessage, Dialog, DialogMessage, User, UserChat
 from settings import MESSAGE_LIMIT
 
 routes = web.RouteTableDef()
 
+
 @routes.post('/login/')
-async def login(request: web.BaseRequest):
+async def login(request: web.BaseRequest) -> web.json_response:
     data = await request.json()
     username = data['username']
     password = data['password']
+    server_logger.info(
+        f'Try to login. Username: {username}'
+    )
     try:
         user = User.get(username=username, password=password)
         if not user.token:
@@ -27,23 +33,30 @@ async def login(request: web.BaseRequest):
                 chat.chat.id for chat in list(user.chats)
             ]
         }
+        server_logger.info(
+            f'{username} logged succesfully'
+        )
 
         return web.json_response(
             responce,
             status=HTTPStatus.OK
         )
-    except User.DoesNotExist:
+    except User.DoesNotExist as e:
+        server_logger.info(e)
         return web.json_response(
             {'error': 'Пользователь не найден. Попробуйте еще раз.\n'},
             status=HTTPStatus.BAD_REQUEST
         )
-    
+
 
 @routes.post('/reg/')
-async def reg(request: web.BaseRequest):
+async def reg(request: web.BaseRequest) -> web.json_response:
     data = await request.json()
     username = data['username']
     password = data['password']
+    server_logger.info(
+        f'Try to login. Username: {username}'
+    )
     try:
         user = User.create(
             username=username,
@@ -65,8 +78,9 @@ async def reg(request: web.BaseRequest):
             responce,
             status=HTTPStatus.CREATED
         )
-    
-    except pw.IntegrityError:
+
+    except pw.IntegrityError as e:
+        server_logger.info(e)
         return web.json_response(
             {'error': 'Пользователь с таким логином уже зарегистрирован.\n'},
             status=HTTPStatus.BAD_REQUEST
@@ -75,26 +89,34 @@ async def reg(request: web.BaseRequest):
 
 @check_user_token
 @routes.get('/chat/{name}/get_id/')
-async def get_chat(request: web.BaseRequest):
+async def get_chat_id(request: web.BaseRequest) -> web.json_response:
     name = request.match_info['name']
-    # если нет чата
-    chat = Chat.get(name=name)
-
-    responce = {
-        'id': chat.id,
-        'name': chat.name
-    }
-
-    return web.json_response(
-        responce,
-        status=HTTPStatus.OK
+    server_logger.info(
+        f'Try to connect chat "{name}"'
     )
+    try:
+        chat = Chat.get(name=name)
 
+        responce = {
+            'id': chat.id,
+            'name': chat.name
+        }
+
+        return web.json_response(
+            responce,
+            status=HTTPStatus.OK
+        )
+    except Chat.DoesNotExist as e:
+        server_logger.info(e)
+        return web.json_response(
+            {'error': 'Чата с таким названием не существует\n'},
+            status=HTTPStatus.BAD_REQUEST
+        )
 
 
 @check_user_token
 @routes.post('/chat/{id}/send/')
-async def get_chat(request: web.BaseRequest):
+async def send_message_to_chat(request: web.BaseRequest) -> web.json_response:
     data = await request.json()
     text = data['text']
 
@@ -102,15 +124,23 @@ async def get_chat(request: web.BaseRequest):
     user = User.get(
         token=token
     )
-
+    
     chat_id = request.match_info['id']
     chat = Chat.get(id=chat_id)
+
+    server_logger.info(
+        f'{user} try to send message {text}'
+    )
 
     ChatMessage.create(
         chat=chat,
         user=user,
         text=text,
         date=datetime.now()
+    )
+
+    server_logger.info(
+        f'{user} send message succesfully'
     )
 
     return web.json_response(
@@ -120,7 +150,7 @@ async def get_chat(request: web.BaseRequest):
 
 @check_user_token
 @routes.get('/chat/{id}/users/')
-async def get_chat(request: web.BaseRequest):
+async def get_chat_users(request: web.BaseRequest) -> web.json_response:
     chat_id = request.match_info['id']
     chat = Chat.get(id=chat_id)
     user_chats = UserChat.filter(
@@ -138,7 +168,7 @@ async def get_chat(request: web.BaseRequest):
 
 @check_user_token
 @routes.get('/chat/{id}/')
-async def get_chat(request: web.BaseRequest):
+async def get_chat(request: web.BaseRequest) -> web.json_response:
     token = request.headers.get('token')
 
     user = User.get(
@@ -152,21 +182,29 @@ async def get_chat(request: web.BaseRequest):
         user=user
     )
     first = int(request.query['first'])
-    if first:
+    client_last_check = request.query.get('last_check')
+    if not client_last_check:
+        last_check = user_chat.last_check
+    else:
+        last_check = datetime.strptime(client_last_check, '%m/%d/%Y,%H:%M:%S.%f')
+    user_chat.last_check = datetime.now()
+    # last_check = user_chat.last_check
+    # if first:
+    #     last_messages = ChatMessage.select() \
+    #         .where(ChatMessage.chat == chat) \
+    #         .order_by(ChatMessage.date.desc()) \
+    #         .limit(MESSAGE_LIMIT)[::-1]
+    # else:
+    last_messages = ChatMessage.select() \
+        .where(ChatMessage.chat == chat) \
+        .where(ChatMessage.date > last_check) \
+        .order_by(ChatMessage.date.desc())
+    if first and last_messages.count() < 20:
         last_messages = ChatMessage.select() \
             .where(ChatMessage.chat == chat) \
             .order_by(ChatMessage.date.desc()) \
             .limit(MESSAGE_LIMIT)[::-1]
-    else:
-        last_check = user_chat.last_check
-        print(last_check)
 
-        last_messages = ChatMessage.select() \
-        .where(ChatMessage.chat == chat) \
-        .where(ChatMessage.date > last_check) \
-        .order_by(ChatMessage.date.desc())
-
-        
     last_messages_formatted = []
 
     for message in last_messages:
@@ -180,12 +218,14 @@ async def get_chat(request: web.BaseRequest):
 
         last_messages_formatted.append(text)
 
-    user_chat.last_check = datetime.now()
+    # print(last_check)
+    # print(last_messages.count())
+
     user_chat.save()
-    print(user_chat.last_check)
-    
+
     responce = {
         'messages': last_messages_formatted,
+        'last_check': user_chat.last_check.strftime('%m/%d/%Y,%H:%M:%S.%f')
     }
 
     return web.json_response(
@@ -196,16 +236,25 @@ async def get_chat(request: web.BaseRequest):
 
 @check_user_token
 @routes.get('/dialog/{username}/get_id/')
-async def get_dialog(request: web.BaseRequest):
+async def get_dialog(request: web.BaseRequest) -> web.json_response:
     token = request.headers.get('token')
     user = User.get(
         token=token
     )
-    second_user_username =  request.match_info['username']
-    # обработка события, если нет пользователя
-    second_user = User.get(
-        username=second_user_username
+    second_user_username = request.match_info['username']
+    server_logger.info(
+        f'Try to start dialog with {second_user_username}'
     )
+    try:
+        second_user = User.get(
+            username=second_user_username
+        )
+    except User.DoesNotExist as e:
+        server_logger.info(e)
+        return web.json_response(
+            {'error': 'Пользователя с таким ником не существует.\n'},
+            status=HTTPStatus.BAD_REQUEST
+        )
     dialog = Dialog.get_dialog(
         user, second_user
     )
@@ -222,7 +271,9 @@ async def get_dialog(request: web.BaseRequest):
 
 @check_user_token
 @routes.post('/dialog/{id}/send/')
-async def get_chat(request: web.BaseRequest):
+async def send_message_to_dialog(
+    request: web.BaseRequest
+) -> web.json_response:
     data = await request.json()
     text = data['text']
 
@@ -245,9 +296,10 @@ async def get_chat(request: web.BaseRequest):
         status=HTTPStatus.OK
     )
 
+
 @check_user_token
 @routes.get('/dialog/{id}/')
-async def get_dialog(request: web.BaseRequest):
+async def get_dialog(request: web.BaseRequest) -> web.json_response:
     token = request.headers.get('token')
     user = User.get(
         token=token
@@ -265,7 +317,7 @@ async def get_dialog(request: web.BaseRequest):
         .where(DialogMessage.dialog == dialog) \
         .where(DialogMessage.date > last_check) \
         .order_by(DialogMessage.date.desc())
-    
+
     last_messages_formatted = []
 
     for message in last_messages:

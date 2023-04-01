@@ -9,5 +9,5 @@ setup.cfg
 
 # Эксперементы
 
-test_client.py
-test_server.py
+1test_client.py
+1test_server.py

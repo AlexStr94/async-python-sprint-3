@@ -1,4 +1,5 @@
 from datetime import datetime
+
 import peewee as pw
 
 from db_manager import DB
@@ -23,17 +24,17 @@ class User(BaseModel):
 
 
 class UserChat(BaseModel):
-    chat = pw.ForeignKeyField(Chat, backref='users')
-    user = pw.ForeignKeyField(User, backref='chats')
+    chat = pw.ForeignKeyField(Chat, backref='users', on_delete='CASCADE')
+    user = pw.ForeignKeyField(User, backref='chats', on_delete='CASCADE')
     last_check = pw.DateTimeField()
-    
+
     class Meta:
         depends_on = (User, Chat)
 
 
 class ChatMessage(BaseModel):
-    chat = pw.ForeignKeyField(Chat, backref='messages')
-    user = pw.ForeignKeyField(User, backref='messages')
+    chat = pw.ForeignKeyField(Chat, backref='messages', on_delete='CASCADE')
+    user = pw.ForeignKeyField(User, backref='messages', on_delete='CASCADE')
     text = pw.TextField()
     date = pw.DateTimeField()
 
@@ -44,11 +45,13 @@ class ChatMessage(BaseModel):
 class Dialog(BaseModel):
     initiator = pw.ForeignKeyField(
         User,
-        backref='init_dialogs'
+        backref='init_dialogs',
+        on_delete='CASCADE'
     )
     recipient = pw.ForeignKeyField(
         User,
-        backref='inv_in_dialogs'
+        backref='inv_in_dialogs',
+        on_delete='CASCADE'
     )
     initiator_last_check = pw.DateTimeField()
     recipient_last_check = pw.DateTimeField()
@@ -68,14 +71,16 @@ class Dialog(BaseModel):
             initiator_last_check=now,
             recipient_last_check=now
         )
-    
+
     def __str__(self):
         return f'Диалог между {self.initiator} и {self.recipient}.'
 
 
 class DialogMessage(BaseModel):
-    dialog = pw.ForeignKeyField(Dialog, backref='messages')
-    user = pw.ForeignKeyField(User, backref='private_messages')
+    dialog = pw.ForeignKeyField(
+        Dialog, backref='messages', on_delete='CASCADE')
+    user = pw.ForeignKeyField(
+        User, backref='private_messages', on_delete='CASCADE')
     text = pw.TextField()
     date = pw.DateTimeField()
 

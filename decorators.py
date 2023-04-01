@@ -1,4 +1,5 @@
 from http import HTTPStatus
+
 from aiohttp import web
 
 from exceptions import NoToken
@@ -12,7 +13,7 @@ def check_user_token(func):
         try:
             if not token:
                 raise NoToken
-            
+
             User.get(
                 token=token
             )
@@ -23,7 +24,5 @@ def check_user_token(func):
             )
 
         return func(*args, **kwargs)
-    
-    return wrapper
 
-# def check_chat
+    return wrapper
