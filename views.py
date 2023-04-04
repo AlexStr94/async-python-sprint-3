@@ -9,6 +9,7 @@ from decorators import check_user_token
 from logger import server_logger
 from models import Chat, ChatMessage, Dialog, DialogMessage, User, UserChat
 from settings import MESSAGE_LIMIT
+from utils import format_message
 
 routes = web.RouteTableDef()
 
@@ -188,13 +189,7 @@ async def get_chat(request: web.BaseRequest) -> web.json_response:
     else:
         last_check = datetime.strptime(client_last_check, '%m/%d/%Y,%H:%M:%S.%f')
     user_chat.last_check = datetime.now()
-    # last_check = user_chat.last_check
-    # if first:
-    #     last_messages = ChatMessage.select() \
-    #         .where(ChatMessage.chat == chat) \
-    #         .order_by(ChatMessage.date.desc()) \
-    #         .limit(MESSAGE_LIMIT)[::-1]
-    # else:
+
     last_messages = ChatMessage.select() \
         .where(ChatMessage.chat == chat) \
         .where(ChatMessage.date > last_check) \
@@ -205,21 +200,9 @@ async def get_chat(request: web.BaseRequest) -> web.json_response:
             .order_by(ChatMessage.date.desc()) \
             .limit(MESSAGE_LIMIT)[::-1]
 
-    last_messages_formatted = []
-
-    for message in last_messages:
-        date = message.date.strftime('%d/%m, %H:%M:%S')
-        text = message.text
-        message_user = message.user
-        if message_user == user:
-            text = f'[{date}] Вы: {text}'
-        else:
-            text = f'[{date}] {message_user.username}: {text}'
-
-        last_messages_formatted.append(text)
-
-    # print(last_check)
-    # print(last_messages.count())
+    last_messages_formatted = format_message(
+        last_messages, user
+    )
 
     user_chat.save()
 
@@ -318,18 +301,9 @@ async def get_dialog(request: web.BaseRequest) -> web.json_response:
         .where(DialogMessage.date > last_check) \
         .order_by(DialogMessage.date.desc())
 
-    last_messages_formatted = []
-
-    for message in last_messages:
-        date = message.date.strftime('%d/%m, %H:%M:%S')
-        text = message.text
-        message_user = message.user
-        if message_user == user:
-            text = f'[{date}] Вы: {text}'
-        else:
-            text = f'[{date}] {message_user.username}: {text}'
-
-        last_messages_formatted.append(text)
+    last_messages_formatted = format_message(
+        last_messages, user
+    )
 
     now = datetime.now()
     if dialog.recipient == user:

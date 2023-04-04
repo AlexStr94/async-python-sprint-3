@@ -6,6 +6,7 @@ __pycache__/
 venv
 sqlite3.db
 setup.cfg
+.vscode
 
 # Эксперементы
 

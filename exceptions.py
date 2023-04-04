@@ -1,2 +1,2 @@
-class NoToken(Exception):
+class NoUserTokenInRequest(Exception):
     pass

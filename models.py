@@ -11,13 +11,13 @@ class BaseModel(pw.Model):
 
 
 class Chat(BaseModel):
-    name = pw.CharField()
+    name = pw.CharField(max_length=64)
 
 
 class User(BaseModel):
-    username = pw.CharField(unique=True)
+    username = pw.CharField(unique=True, max_length=64)
     password = pw.CharField()
-    token = pw.CharField(unique=True)
+    token = pw.CharField(unique=True, max_length=128)
 
     def __str__(self):
         return self.username

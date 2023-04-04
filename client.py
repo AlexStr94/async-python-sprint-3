@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from http import HTTPStatus
+import sys
 
 import aioconsole
 import aiohttp
@@ -213,4 +214,9 @@ class Client:
 
 
 if __name__ == '__main__':
-    asyncio.run(Client().run())
+    try:
+        asyncio.run(Client().run())
+    except KeyboardInterrupt:
+        print('Выход из мессенджера')
+        sys.exit(0)
+
